@@ -1,0 +1,93 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "highlight.js/styles/github-dark.css";
+
+:root {
+  --background: oklch(20.5% 0.005 286);      /* zinc-950 */
+  --foreground: oklch(98.5% 0 0);             /* zinc-50 */
+  --card: oklch(26.9% 0.006 286);             /* zinc-900 */
+  --card-foreground: oklch(98.5% 0 0);
+  --popover: oklch(26.9% 0.006 286);
+  --popover-foreground: oklch(98.5% 0 0);
+  --primary: oklch(69.6% 0.17 162.48);        /* emerald-500 */
+  --primary-foreground: oklch(15% 0.01 162);
+  --secondary: oklch(33.5% 0.007 286);        /* zinc-800 */
+  --secondary-foreground: oklch(98.5% 0 0);
+  --muted: oklch(33.5% 0.007 286);
+  --muted-foreground: oklch(70.5% 0.015 286);  /* zinc-400 */
+  --accent: oklch(33.5% 0.007 286);
+  --accent-foreground: oklch(98.5% 0 0);
+  --destructive: oklch(63.7% 0.208 25.33);
+  --destructive-foreground: oklch(98.5% 0 0);
+  --border: oklch(37% 0.006 286);
+  --input: oklch(37% 0.006 286);
+  --ring: oklch(69.6% 0.17 162.48);
+  --radius: 0.625rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--secondary); border-radius: 8px; }
+
+.prose-kb { color: var(--foreground); max-width: none; }
+.prose-kb h1, .prose-kb h2, .prose-kb h3 {
+  font-weight: 600; margin-top: 1.5em; margin-bottom: 0.5em; color: var(--foreground);
+}
+.prose-kb h1 { font-size: 1.5rem; }
+.prose-kb h2 { font-size: 1.25rem; }
+.prose-kb h3 { font-size: 1.1rem; }
+.prose-kb p { margin: 0.75em 0; line-height: 1.7; }
+.prose-kb ul, .prose-kb ol { margin: 0.75em 0; padding-left: 1.5em; }
+.prose-kb li { margin: 0.25em 0; }
+.prose-kb a { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.prose-kb code {
+  background: var(--secondary); padding: 0.15em 0.4em; border-radius: 4px;
+  font-size: 0.875em; font-family: var(--font-mono);
+}
+.prose-kb pre {
+  background: #0d1117; border: 1px solid var(--border); border-radius: 8px;
+  padding: 1em; overflow-x: auto; margin: 1em 0;
+}
+.prose-kb pre code { background: transparent; padding: 0; }
+.prose-kb table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.9em; }
+.prose-kb th, .prose-kb td { border: 1px solid var(--border); padding: 0.5em 0.75em; text-align: left; }
+.prose-kb th { background: var(--secondary); }
+.prose-kb blockquote { border-left: 3px solid var(--primary); padding-left: 1em; color: var(--muted-foreground); margin: 1em 0; }
+.prose-kb input[type="checkbox"] { margin-right: 0.5em; accent-color: var(--primary); }
