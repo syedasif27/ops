@@ -28,6 +28,16 @@ export interface Command {
   tags?: string[];
 }
 
+export interface Attachment {
+  id: string;
+  article_id: string | null;
+  filename: string;
+  content_type: string | null;
+  size_bytes: number | null;
+  gcs_path: string;
+  created_at: string;
+}
+
 export interface FavoriteItem {
   id: string;
   item_type: "article" | "command" | "runbook" | "project";

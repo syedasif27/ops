@@ -153,6 +153,21 @@ create table if not exists ssl_certificates (
 );
 
 -- ---------------------------------------------------------------------
+-- attachments  (files stored in GCP Cloud Storage, referenced by GCS object path)
+-- ---------------------------------------------------------------------
+create table if not exists attachments (
+  id            uuid primary key default gen_random_uuid(),
+  article_id    uuid references articles(id) on delete cascade,
+  filename      text not null,
+  content_type  text,
+  size_bytes    bigint,
+  gcs_path      text not null,   -- object path within the bucket, e.g. articles/<id>/<uuid>-name.png
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists idx_attachments_article on attachments (article_id);
+
+-- ---------------------------------------------------------------------
 -- favorites  (polymorphic-ish: one row per favorited item, typed)
 -- ---------------------------------------------------------------------
 create table if not exists favorites (
@@ -280,6 +295,7 @@ alter table vpn_inventory enable row level security;
 alter table ssl_certificates enable row level security;
 alter table favorites enable row level security;
 alter table tags enable row level security;
+alter table attachments enable row level security;
 
 -- No public policies are created: the anon key gets zero access.
 -- All reads/writes happen via the service role key on the server.

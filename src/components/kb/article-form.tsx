@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TagInput } from "@/components/kb/tag-input";
 import { Markdown } from "@/components/kb/markdown";
+import { AttachmentUploader } from "@/components/kb/attachment-uploader";
 import { Card } from "@/components/ui/card";
 import { Loader2, Save } from "lucide-react";
 import type { Article } from "@/lib/types";
@@ -29,6 +30,24 @@ export function ArticleForm({ initial }: { initial?: Article }) {
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+
+  function insertAtCursor(markdown: string) {
+    const el = contentRef.current;
+    if (!el) {
+      setContent((c) => `${c}\n\n${markdown}\n`);
+      return;
+    }
+    const start = el.selectionStart ?? content.length;
+    const end = el.selectionEnd ?? content.length;
+    const next = `${content.slice(0, start)}\n${markdown}\n${content.slice(end)}`;
+    setContent(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const cursor = start + markdown.length + 2;
+      el.setSelectionRange(cursor, cursor);
+    });
+  }
 
   async function handleSubmit() {
     if (!title.trim()) {
@@ -98,13 +117,20 @@ export function ArticleForm({ initial }: { initial?: Article }) {
 
       <div className="space-y-1.5">
         <Label>Content (Markdown)</Label>
+        {!isEdit && (
+          <p className="text-xs text-muted-foreground">
+            Save the article first to unlock image uploads — you can add them from the Images tab afterward.
+          </p>
+        )}
         <Tabs defaultValue="write">
           <TabsList>
             <TabsTrigger value="write">Write</TabsTrigger>
             <TabsTrigger value="preview">Preview</TabsTrigger>
+            {isEdit && <TabsTrigger value="images">Images</TabsTrigger>}
           </TabsList>
           <TabsContent value="write">
             <Textarea
+              ref={contentRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder={"## Symptom\n\n## Diagnosis\n```bash\nsysctl net.ipv4.ip_forward\n```\n\n## Resolution"}
@@ -121,6 +147,11 @@ export function ArticleForm({ initial }: { initial?: Article }) {
               )}
             </Card>
           </TabsContent>
+          {isEdit && (
+            <TabsContent value="images">
+              <AttachmentUploader articleId={initial!.id} onInsert={insertAtCursor} />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 

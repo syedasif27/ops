@@ -61,26 +61,71 @@ Article images are stored in a private Cloud Storage bucket and served
 through a signed-URL redirect (`/api/uploads/:id`), so the bucket itself
 never needs to be public.
 
-1. In the [GCP Console](https://console.cloud.google.com), create or pick a project.
-2. **Cloud Storage → Buckets → Create**. Any region is fine; uniform
-   bucket-level access is fine (we don't rely on per-object ACLs).
-3. **IAM & Admin → Service Accounts → Create service account**, e.g.
-   `asifops-kb-uploads`. Grant it the **Storage Object Admin** role,
-   scoped to that bucket (or project-wide if you don't mind the broader
-   grant for a personal project).
-4. On that service account, **Keys → Add key → Create new key → JSON**.
-   This downloads a `.json` key file.
-5. Base64-encode it so it can live in a single env var:
-   ```bash
-   base64 -i path/to/your-key.json | tr -d '\n'
-   ```
-   (On Linux, `base64 -w 0 path/to/your-key.json` does the same thing.)
-6. Set:
-   - `GCS_BUCKET_NAME` → the bucket name from step 2
-   - `GCS_SERVICE_ACCOUNT_KEY` → the base64 string from step 5
+**Many GCP orgs now block downloadable service account keys**
+(`iam.disableServiceAccountKeyCreation`) — Google's own recommended
+replacement is **Workload Identity Federation**, and Vercel has first-class
+support for it via its own OIDC token, with no keys stored anywhere. That's
+what these steps set up. (If your org *does* allow key creation and you'd
+rather use a simple key, skip to the **Alternative** note at the end of
+this section.)
 
-Treat that key like any other secret — anyone with it can read/write/delete
-objects in the bucket per the IAM role you granted.
+1. **Create the bucket**, if you haven't already:
+   ```bash
+   gcloud storage buckets create gs://YOUR-BUCKET-NAME --location=us-central1
+   ```
+2. **Console → IAM & Admin → Workload Identity Federation → Create Pool.**
+   - Pool name/ID: `vercel`
+3. **Add a provider to the pool:**
+   - Type: `OpenID Connect (OIDC)`
+   - Name/ID: `vercel`
+   - Issuer URL: `https://oidc.vercel.com/[YOUR_VERCEL_TEAM_SLUG]`
+     (find your team slug in the Vercel dashboard URL; if you're on a
+     personal/hobby account without a team, use `https://oidc.vercel.com`)
+   - Leave the JWK file empty
+   - Audience: select **Allowed audiences**, add
+     `https://vercel.com/[YOUR_VERCEL_TEAM_SLUG]`
+   - Attribute mapping: `google.subject` = `assertion.sub`
+4. **Create a service account** (`IAM & Admin → Service Accounts`), e.g.
+   `vercel`. Grant it:
+   - `Storage Object Admin` (on the bucket, or project-wide)
+   - `Service Account Token Creator` **on itself** — this is required for
+     signed URL generation under Workload Identity Federation; without it
+     uploads succeed but viewing images will fail with a permission error.
+5. Back on the Workload Identity Pool's details page, copy the **IAM
+   Principal** (looks like
+   `principal://iam.googleapis.com/projects/.../workloadIdentityPools/vercel/subject/...`).
+   On the service account → **Permissions → Grant Access**, paste that
+   principal into **Service Account Users role**, replacing
+   `SUBJECT_ATTRIBUTE_VALUE` with
+   `owner:[VERCEL_TEAM]:project:[PROJECT_NAME]:environment:production`
+   (swap in your actual Vercel team slug, project name, and environment —
+   add one principal per environment you want to grant, e.g. also
+   `environment:preview` if you want previews to work too).
+6. Gather these values for your env vars:
+
+   | Value | Where to find it |
+   |---|---|
+   | `GCP_PROJECT_ID` | IAM & Admin → Settings |
+   | `GCP_PROJECT_NUMBER` | IAM & Admin → Settings |
+   | `GCP_SERVICE_ACCOUNT_EMAIL` | IAM & Admin → Service Accounts |
+   | `GCP_WORKLOAD_IDENTITY_POOL_ID` | the pool ID from step 2 (`vercel`) |
+   | `GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID` | the provider ID from step 3 (`vercel`) |
+   | `GCS_BUCKET_NAME` | the bucket name from step 1 |
+
+   These only resolve to real credentials when the app is actually running
+   on Vercel (Vercel injects the OIDC token at request time). For local
+   dev, either run `vercel env pull` (which also pulls a short-lived OIDC
+   token Vercel refreshes for you), or simpler: run
+   `gcloud auth application-default login` once on your machine — the app
+   falls back to your local `gcloud` credentials automatically if the
+   `GCP_*` Workload Identity variables aren't set.
+
+**Alternative (key-based, only if your org allows it):** set
+`GCS_SERVICE_ACCOUNT_KEY` to a base64-encoded service account JSON key
+(`base64 -i key.json | tr -d '\n'`, or `base64 -w 0 key.json` on Linux). If
+this variable is set, the app uses it instead of Workload Identity
+Federation — useful for quick local testing even if you set up WIF for
+production.
 
 ---
 
@@ -100,8 +145,9 @@ cp .env.local.example .env.local
 | `AUTH_GITHUB_ID`             | GitHub OAuth App → Client ID                            |
 | `AUTH_GITHUB_SECRET`         | GitHub OAuth App → Client secret                        |
 | `ALLOWED_GITHUB_USERNAME`    | Your GitHub username — only this account can sign in    |
-| `GCS_BUCKET_NAME`             | The Cloud Storage bucket name from step 3              |
-| `GCS_SERVICE_ACCOUNT_KEY`     | Base64-encoded service account JSON key from step 3     |
+| `GCS_BUCKET_NAME`             | The Cloud Storage bucket name from step 3               |
+| `GCP_PROJECT_ID` / `GCP_PROJECT_NUMBER` / `GCP_SERVICE_ACCOUNT_EMAIL` / `GCP_WORKLOAD_IDENTITY_POOL_ID` / `GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID` | Workload Identity Federation values from step 3 (keyless) |
+| `GCS_SERVICE_ACCOUNT_KEY`     | Only if using the key-based fallback from step 3         |
 
 This app runs in **single-user mode**: any GitHub account can complete the
 OAuth flow, but `src/lib/auth.ts` rejects the sign-in unless the GitHub

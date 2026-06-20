@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase";
-import type { Article, Command, DashboardStats, SearchResult } from "@/lib/types";
+import type { Article, Command, DashboardStats, SearchResult, Attachment } from "@/lib/types";
 
 // ---------------------------------------------------------------------
 // Tags
@@ -285,6 +285,57 @@ export async function updateCommand(
 
 export async function deleteCommand(id: string): Promise<void> {
   const { error } = await supabaseAdmin.from("commands").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------
+// Attachments (GCS-backed files)
+// ---------------------------------------------------------------------
+
+export async function createAttachment(input: {
+  articleId: string | null;
+  filename: string;
+  contentType: string | null;
+  sizeBytes: number | null;
+  gcsPath: string;
+}): Promise<Attachment> {
+  const { data, error } = await supabaseAdmin
+    .from("attachments")
+    .insert({
+      article_id: input.articleId,
+      filename: input.filename,
+      content_type: input.contentType,
+      size_bytes: input.sizeBytes,
+      gcs_path: input.gcsPath,
+    })
+    .select("id, article_id, filename, content_type, size_bytes, gcs_path, created_at")
+    .single();
+  if (error) throw error;
+  return data as Attachment;
+}
+
+export async function getAttachment(id: string): Promise<Attachment | null> {
+  const { data, error } = await supabaseAdmin
+    .from("attachments")
+    .select("id, article_id, filename, content_type, size_bytes, gcs_path, created_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Attachment) ?? null;
+}
+
+export async function listAttachmentsForArticle(articleId: string): Promise<Attachment[]> {
+  const { data, error } = await supabaseAdmin
+    .from("attachments")
+    .select("id, article_id, filename, content_type, size_bytes, gcs_path, created_at")
+    .eq("article_id", articleId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Attachment[];
+}
+
+export async function deleteAttachmentRecord(id: string): Promise<void> {
+  const { error } = await supabaseAdmin.from("attachments").delete().eq("id", id);
   if (error) throw error;
 }
 
