@@ -55,7 +55,36 @@ policies — the `anon` key has zero access by design.
 
 ---
 
-## 3. Configure environment variables
+## 3. Set up GCP Cloud Storage (for article images)
+
+Article images are stored in a private Cloud Storage bucket and served
+through a signed-URL redirect (`/api/uploads/:id`), so the bucket itself
+never needs to be public.
+
+1. In the [GCP Console](https://console.cloud.google.com), create or pick a project.
+2. **Cloud Storage → Buckets → Create**. Any region is fine; uniform
+   bucket-level access is fine (we don't rely on per-object ACLs).
+3. **IAM & Admin → Service Accounts → Create service account**, e.g.
+   `asifops-kb-uploads`. Grant it the **Storage Object Admin** role,
+   scoped to that bucket (or project-wide if you don't mind the broader
+   grant for a personal project).
+4. On that service account, **Keys → Add key → Create new key → JSON**.
+   This downloads a `.json` key file.
+5. Base64-encode it so it can live in a single env var:
+   ```bash
+   base64 -i path/to/your-key.json | tr -d '\n'
+   ```
+   (On Linux, `base64 -w 0 path/to/your-key.json` does the same thing.)
+6. Set:
+   - `GCS_BUCKET_NAME` → the bucket name from step 2
+   - `GCS_SERVICE_ACCOUNT_KEY` → the base64 string from step 5
+
+Treat that key like any other secret — anyone with it can read/write/delete
+objects in the bucket per the IAM role you granted.
+
+---
+
+## 4. Configure environment variables
 
 Copy the template and fill it in:
 
@@ -71,6 +100,8 @@ cp .env.local.example .env.local
 | `AUTH_GITHUB_ID`             | GitHub OAuth App → Client ID                            |
 | `AUTH_GITHUB_SECRET`         | GitHub OAuth App → Client secret                        |
 | `ALLOWED_GITHUB_USERNAME`    | Your GitHub username — only this account can sign in    |
+| `GCS_BUCKET_NAME`             | The Cloud Storage bucket name from step 3              |
+| `GCS_SERVICE_ACCOUNT_KEY`     | Base64-encoded service account JSON key from step 3     |
 
 This app runs in **single-user mode**: any GitHub account can complete the
 OAuth flow, but `src/lib/auth.ts` rejects the sign-in unless the GitHub
@@ -78,7 +109,7 @@ OAuth flow, but `src/lib/auth.ts` rejects the sign-in unless the GitHub
 
 ---
 
-## 4. Run locally
+## 5. Run locally
 
 ```bash
 npm install
@@ -90,7 +121,7 @@ Visit `http://localhost:3000` → you'll be redirected to `/login` →
 
 ---
 
-## 5. Deploy to Vercel
+## 6. Deploy to Vercel
 
 1. Push this repo to GitHub.
 2. In Vercel: **Add New → Project**, import the repo.
@@ -123,6 +154,11 @@ Visit `http://localhost:3000` → you'll be redirected to `/login` →
   automatically; otherwise the title falls back to the first `# Heading`
   in the file, then the filename. You can tweak title/category for each
   staged file before confirming the import.
+- **Image attachments**: upload images (PNG/JPEG/GIF/WebP/SVG, up to 10MB)
+  to an existing article from the editor's Images tab. Files are stored in
+  a private GCP Cloud Storage bucket; the app embeds a stable
+  `/api/uploads/:id` link in the markdown that redirects to a freshly
+  signed, short-lived URL on every view — the bucket itself stays private.
 - **Dashboard**: total articles/commands/runbooks, recently updated,
   most viewed, favorites.
 - **Keyboard shortcuts**: `⌘K`/`Ctrl+K` → search, `N` → new article.
@@ -152,6 +188,7 @@ src/
       commands/             – list, new, [id] detail/edit
     api/
       articles/, commands/  – CRUD REST endpoints
+      uploads/                – GCS attachment upload / signed-redirect / delete
       search/                – full-text search endpoint
       favorites/             – favorite toggle + list
       dashboard/              – stats endpoint
@@ -162,9 +199,10 @@ src/
   lib/
     auth.ts                 – Auth.js config + single-user allowlist
     supabase.ts             – server-only Supabase client (service role)
+    gcs.ts                  – server-only GCS client (upload / sign / delete)
     db.ts                   – all data-access functions
     types.ts                – shared TypeScript types
 supabase/
-  schema.sql                – full database schema (all 9 tables + FTS + RLS)
+  schema.sql                – full database schema (10 tables + FTS + RLS)
   seed.sql                  – sample articles/runbooks/commands
 ```
