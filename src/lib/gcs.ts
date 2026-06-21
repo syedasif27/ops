@@ -1,5 +1,5 @@
 import { Storage } from "@google-cloud/storage";
-import { ExternalAccountClient } from "google-auth-library";
+import { ExternalAccountClient, type AuthClient } from "google-auth-library";
 import { getVercelOidcToken } from "@vercel/oidc";
 
 // Server-only. Never import this from a "use client" component.
@@ -34,14 +34,7 @@ const wifConfigured = Boolean(gcpProjectNumber && gcpServiceAccountEmail && gcpP
 
 let storage: Storage | null = null;
 
-// `@google-cloud/storage` bundles its own nested copy of
-// `google-auth-library`, which TypeScript treats as a structurally
-// different (if identical) `AuthClient` type from the top-level one we
-// import here. Both are the real class at runtime — this is purely a
-// duplicate-package typing artifact, so we widen the return type rather
-// than fight it.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildWifAuthClient(): any {
+function buildWifAuthClient(): AuthClient {
   return ExternalAccountClient.fromJSON({
     type: "external_account",
     audience: `//iam.googleapis.com/projects/${gcpProjectNumber}/locations/global/workloadIdentityPools/${gcpPoolId}/providers/${gcpProviderId}`,
@@ -53,7 +46,7 @@ function buildWifAuthClient(): any {
       // invoked at module load time, only from within a request handler.
       getSubjectToken: () => getVercelOidcToken(),
     },
-  });
+  }) as AuthClient;
 }
 
 function getStorage(): Storage {
@@ -62,11 +55,13 @@ function getStorage(): Storage {
   if (encodedKey) {
     const credentials = JSON.parse(Buffer.from(encodedKey, "base64").toString("utf-8"));
     storage = new Storage({ projectId: credentials.project_id, credentials });
+    console.log("[gcs] Using service-account-key auth.");
     return storage;
   }
 
   if (wifConfigured) {
     storage = new Storage({ projectId: gcpProjectId, authClient: buildWifAuthClient() });
+    console.log("[gcs] Using Workload Identity Federation (Vercel OIDC) auth.");
     return storage;
   }
 
@@ -78,6 +73,12 @@ function getStorage(): Storage {
   );
   storage = new Storage({ projectId: gcpProjectId });
   return storage;
+}
+
+export function getAuthMethod(): "service-account-key" | "workload-identity-federation" | "application-default-credentials" {
+  if (encodedKey) return "service-account-key";
+  if (wifConfigured) return "workload-identity-federation";
+  return "application-default-credentials";
 }
 
 function getBucket() {
@@ -97,7 +98,6 @@ export async function uploadToGcs(opts: {
   const file = bucket.file(opts.objectPath);
   await file.save(opts.buffer, {
     contentType: opts.contentType || "application/octet-stream",
-    resumable: false,
   });
   return opts.objectPath;
 }
